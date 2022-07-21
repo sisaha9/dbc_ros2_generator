@@ -26,76 +26,57 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-/** \brief This file defines the RaptorDbwCAN class.
- * \copyright Copyright 2021 New Eagle LLC
- * \file raptor_dbw_can.hpp
- */
+#include <can_dbc_parser/Dbc.hpp>
 
-#ifndef RAPTOR_DBW_CAN__RAPTOR_DBW_CAN_HPP_
-#define RAPTOR_DBW_CAN__RAPTOR_DBW_CAN_HPP_
-
-#include <cmath>
-#include <array>
+#include <map>
 #include <string>
-#include <memory>
-#include <vector>
+#include <utility>
 
-#include "rclcpp/rclcpp.hpp"
-
-// ROS messages
-#include "can_msgs/msg/frame.hpp"
-RAPTOR_MSG_IMPORTS
-
-#include "can_dbc_parser/DbcMessage.hpp"
-#include "can_dbc_parser/DbcSignal.hpp"
-#include "can_dbc_parser/Dbc.hpp"
-#include "can_dbc_parser/DbcBuilder.hpp"
-
-#include "raptor_dbw_can/dispatch.hpp"
-
-using can_msgs::msg::Frame;
-using NewEagle::DbcMessage;
-
-RAPTOR_USING
-
-namespace raptor_dbw_can
+namespace NewEagle
 {
-class RaptorDbwCAN : public rclcpp::Node
+
+std::map<std::string, NewEagle::DbcMessage> * Dbc::GetMessages()
 {
-public:
-/** \brief Default constructor.
- * \param[in] options The options for this node.
- */
-    explicit RaptorDbwCAN(const rclcpp::NodeOptions & options);
+  return &_messages;
+}
 
-private:
+void Dbc::AddMessage(NewEagle::DbcMessage message)
+{
+  _messages.insert(std::pair<std::string, NewEagle::DbcMessage>(message.GetName(), message));
+}
 
-/** \brief Convert reports received over CAN into ROS messages.
- * \param[in] msg The message received over CAN.
- */
-    void recvCAN(const Frame::SharedPtr msg);
+NewEagle::DbcMessage * Dbc::GetMessage(std::string messageName)
+{
+  std::map<std::string, NewEagle::DbcMessage>::iterator it;
 
-    RECV_CAN_MESSAGES
+  it = _messages.find(messageName);
 
-    RECV_ROS_MESSAGES
+  if (_messages.end() == it) {
+    return NULL;
+  }
 
-    std::uint8_t vehicle_number_;
+  NewEagle::DbcMessage * message = &it->second;
 
-    // Parameters from launch
-    std::string dbw_dbc_file_;
-    float max_steer_angle_;
-    bool publish_my_laps_;
+  return message;
+}
 
-    ROS_SUBSCRIBERS
-    rclcpp::Subscription<Frame>::SharedPtr sub_can_;
+NewEagle::DbcMessage * Dbc::GetMessageById(uint32_t id)
+{
+  for (std::map<std::string, NewEagle::DbcMessage>::iterator it = _messages.begin();
+    it != _messages.end(); it++)
+  {
+    if (it->second.GetId() == id) {
+      NewEagle::DbcMessage * message = &it->second;
 
-    ROS_PUBLISHERS
-    rclcpp::Publisher<Frame>::SharedPtr pub_can_;
+      return message;
+    }
+  }
 
-    NewEagle::Dbc dbw_dbc_;
-};
+  return NULL;
+}
 
-}  // namespace raptor_dbw_can
-
-#endif  // RAPTOR_DBW_CAN__RAPTOR_DBW_CAN_HPP_
-
+uint16_t Dbc::GetMessageCount()
+{
+  return _messages.size();
+}
+}  // namespace NewEagle

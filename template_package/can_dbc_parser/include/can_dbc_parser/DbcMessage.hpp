@@ -26,76 +26,80 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-/** \brief This file defines the RaptorDbwCAN class.
- * \copyright Copyright 2021 New Eagle LLC
- * \file raptor_dbw_can.hpp
- */
+#ifndef CAN_DBC_PARSER__DBCMESSAGE_HPP_
+#define CAN_DBC_PARSER__DBCMESSAGE_HPP_
 
-#ifndef RAPTOR_DBW_CAN__RAPTOR_DBW_CAN_HPP_
-#define RAPTOR_DBW_CAN__RAPTOR_DBW_CAN_HPP_
+#include <can_msgs/msg/frame.hpp>
+#include <can_dbc_parser/DbcSignal.hpp>
 
-#include <cmath>
-#include <array>
+#include <map>
 #include <string>
-#include <memory>
-#include <vector>
-
-#include "rclcpp/rclcpp.hpp"
-
-// ROS messages
-#include "can_msgs/msg/frame.hpp"
-RAPTOR_MSG_IMPORTS
-
-#include "can_dbc_parser/DbcMessage.hpp"
-#include "can_dbc_parser/DbcSignal.hpp"
-#include "can_dbc_parser/Dbc.hpp"
-#include "can_dbc_parser/DbcBuilder.hpp"
-
-#include "raptor_dbw_can/dispatch.hpp"
 
 using can_msgs::msg::Frame;
-using NewEagle::DbcMessage;
 
-RAPTOR_USING
-
-namespace raptor_dbw_can
+namespace NewEagle
 {
-class RaptorDbwCAN : public rclcpp::Node
+struct DbcMessageComment
 {
-public:
-/** \brief Default constructor.
- * \param[in] options The options for this node.
- */
-    explicit RaptorDbwCAN(const rclcpp::NodeOptions & options);
-
-private:
-
-/** \brief Convert reports received over CAN into ROS messages.
- * \param[in] msg The message received over CAN.
- */
-    void recvCAN(const Frame::SharedPtr msg);
-
-    RECV_CAN_MESSAGES
-
-    RECV_ROS_MESSAGES
-
-    std::uint8_t vehicle_number_;
-
-    // Parameters from launch
-    std::string dbw_dbc_file_;
-    float max_steer_angle_;
-    bool publish_my_laps_;
-
-    ROS_SUBSCRIBERS
-    rclcpp::Subscription<Frame>::SharedPtr sub_can_;
-
-    ROS_PUBLISHERS
-    rclcpp::Publisher<Frame>::SharedPtr pub_can_;
-
-    NewEagle::Dbc dbw_dbc_;
+  uint32_t Id;
+  std::string Comment;
 };
 
-}  // namespace raptor_dbw_can
+enum IdType
+{
+  STD = 0,
+  EXT = 1
+};
 
-#endif  // RAPTOR_DBW_CAN__RAPTOR_DBW_CAN_HPP_
+typedef struct
+{
+  uint8_t : 8;
+  uint8_t : 8;
+  uint8_t : 8;
+  uint8_t : 8;
+  uint8_t : 8;
+  uint8_t : 8;
+  uint8_t : 8;
+  uint8_t : 8;
+} EmptyData;
 
+class DbcMessage
+{
+public:
+  DbcMessage();
+  DbcMessage(
+    uint8_t dlc,
+    uint32_t id,
+    IdType idType,
+    std::string name,
+    uint32_t rawId
+  );
+
+  uint8_t GetDlc();
+  uint32_t GetId();
+  IdType GetIdType();
+  std::string GetName();
+  Frame GetFrame();
+  uint32_t GetSignalCount();
+  void SetFrame(const Frame::SharedPtr msg);
+  void AddSignal(std::string signalName, NewEagle::DbcSignal signal);
+  NewEagle::DbcSignal * GetSignal(std::string signalName);
+  void SetRawText(std::string rawText);
+  uint32_t GetRawId();
+  void SetComment(NewEagle::DbcMessageComment comment);
+  std::map<std::string, NewEagle::DbcSignal> * GetSignals();
+  bool AnyMultiplexedSignals();
+
+private:
+  std::map<std::string, NewEagle::DbcSignal> _signals;
+  uint8_t _data[8];
+  uint8_t _dlc;
+  uint32_t _id;
+  IdType _idType;
+  std::string _name;
+  uint32_t _rawId;
+  NewEagle::DbcMessageComment _comment;
+};
+}  // namespace NewEagle
+
+#endif  // CAN_DBC_PARSER__DBCMESSAGE_HPP_

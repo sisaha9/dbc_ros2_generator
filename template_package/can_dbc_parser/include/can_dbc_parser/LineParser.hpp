@@ -26,76 +26,78 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-/** \brief This file defines the RaptorDbwCAN class.
- * \copyright Copyright 2021 New Eagle LLC
- * \file raptor_dbw_can.hpp
- */
+#ifndef CAN_DBC_PARSER__LINEPARSER_HPP_
+#define CAN_DBC_PARSER__LINEPARSER_HPP_
 
-#ifndef RAPTOR_DBW_CAN__RAPTOR_DBW_CAN_HPP_
-#define RAPTOR_DBW_CAN__RAPTOR_DBW_CAN_HPP_
-
-#include <cmath>
-#include <array>
+#include <cctype>
+#include <stdexcept>
 #include <string>
-#include <memory>
-#include <vector>
 
-#include "rclcpp/rclcpp.hpp"
-
-// ROS messages
-#include "can_msgs/msg/frame.hpp"
-RAPTOR_MSG_IMPORTS
-
-#include "can_dbc_parser/DbcMessage.hpp"
-#include "can_dbc_parser/DbcSignal.hpp"
-#include "can_dbc_parser/Dbc.hpp"
-#include "can_dbc_parser/DbcBuilder.hpp"
-
-#include "raptor_dbw_can/dispatch.hpp"
-
-using can_msgs::msg::Frame;
-using NewEagle::DbcMessage;
-
-RAPTOR_USING
-
-namespace raptor_dbw_can
+namespace NewEagle
 {
-class RaptorDbwCAN : public rclcpp::Node
+class LineParserExceptionBase : public std::exception
 {
-public:
-/** \brief Default constructor.
- * \param[in] options The options for this node.
- */
-    explicit RaptorDbwCAN(const rclcpp::NodeOptions & options);
-
-private:
-
-/** \brief Convert reports received over CAN into ROS messages.
- * \param[in] msg The message received over CAN.
- */
-    void recvCAN(const Frame::SharedPtr msg);
-
-    RECV_CAN_MESSAGES
-
-    RECV_ROS_MESSAGES
-
-    std::uint8_t vehicle_number_;
-
-    // Parameters from launch
-    std::string dbw_dbc_file_;
-    float max_steer_angle_;
-    bool publish_my_laps_;
-
-    ROS_SUBSCRIBERS
-    rclcpp::Subscription<Frame>::SharedPtr sub_can_;
-
-    ROS_PUBLISHERS
-    rclcpp::Publisher<Frame>::SharedPtr pub_can_;
-
-    NewEagle::Dbc dbw_dbc_;
 };
 
-}  // namespace raptor_dbw_can
+class LineParserAtEOLException : public LineParserExceptionBase
+{
+  virtual const char * what() const throw()
+  {
+    return "Unexpected end of line.";
+  }
+};
 
-#endif  // RAPTOR_DBW_CAN__RAPTOR_DBW_CAN_HPP_
+class LineParserLenZeroException : public LineParserExceptionBase
+{
+  virtual const char * what() const throw()
+  {
+    return "Nothing found in search space.";
+  }
+};
 
+class LineParserInvalidCharException : public LineParserExceptionBase
+{
+  virtual const char * what() const throw()
+  {
+    return "Invalid character(s) search space.";
+  }
+};
+
+enum ReadDoubleState
+{
+  READING_WHOLE_NUMBER = 0,
+  READING_FRACTION = 1,
+  READ_E = 2,
+  READ_SIGN = 3,
+  READING_EXP = 4
+};
+
+class LineParser
+{
+public:
+  explicit LineParser(const std::string & line);
+
+  int32_t GetPosition();
+  std::string ReadCIdentifier();
+  std::string ReadCIdentifier(std::string fieldName);
+  uint32_t ReadUInt();
+  uint32_t ReadUInt(std::string fieldName);
+  void SeekSeparator(char separator);
+  char ReadNextChar(std::string fieldName);
+  int32_t ReadInt();
+  double ReadDouble();
+  double ReadDouble(std::string fieldName);
+  std::string ReadQuotedString();
+  uint32_t PeekUInt();
+
+private:
+  int32_t _position;
+  std::string _line;
+
+  void SkipWhitespace();
+  bool AtEOL();
+  char ReadNextChar();
+};
+}  // namespace NewEagle
+
+#endif  // CAN_DBC_PARSER__LINEPARSER_HPP_

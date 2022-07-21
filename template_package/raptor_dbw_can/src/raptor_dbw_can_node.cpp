@@ -33,17 +33,17 @@
 
 int main(int argc, char ** argv)
 {
-  rclcpp::init(argc, argv);
-  rclcpp::NodeOptions options{};
-  rclcpp::executors::SingleThreadedExecutor exec{};
+    rclcpp::init(argc, argv);
+    rclcpp::NodeOptions options{};
+    rclcpp::executors::SingleThreadedExecutor exec{};
 
-  // Create RaptorDbwCAN class
-  auto node = std::make_shared<raptor_dbw_can::RaptorDbwCAN>(options);
-  exec.add_node(node->get_node_base_interface());
-  exec.spin();
+    // Create RaptorDbwCAN class
+    auto node = std::make_shared<raptor_dbw_can::RaptorDbwCAN>(options);
+    exec.add_node(node->get_node_base_interface());
+    exec.spin();
 
-  rclcpp::shutdown();
+    rclcpp::shutdown();
 
-  return 0;
+    return 0;
 }
 

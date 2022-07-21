@@ -1,4 +1,3 @@
-import pathlib
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
@@ -8,6 +7,7 @@ import math
 import bisect
 from distutils.dir_util import copy_tree
 from distutils.file_util import copy_file
+import re
 
 supported_int_bit_lengths = [8, 16, 32, 64]
 supported_float_bit_lengths = [32, 64]
@@ -16,10 +16,11 @@ supported_float_bit_lengths = [32, 64]
 dbc_fp = 'IAC-CAN1-INDY-V9.dbc'
 yaml_fp = 'IAC-CAN1-INDY-V9.yaml'
 template_pkg_dir = Path('template_package/')
-out_pkg_dir = Path('generated/')
+out_pkg_dir = Path('generated') / 'src'
 out_pkg_msg_dir = out_pkg_dir / 'raptor_dbw_msgs'
 out_pkg_can_dir = out_pkg_dir / 'raptor_dbw_can'
-out_msg_dir = out_pkg_msg_dir / 'msgs'
+ros_msg_dir = 'msg/'
+out_msg_dir = out_pkg_msg_dir / ros_msg_dir
 out_msg_cmake = out_pkg_msg_dir / 'CMakeLists.txt'
 out_dbc_dir = out_pkg_can_dir / 'config'
 out_launch_dir = out_pkg_can_dir / 'launch'
@@ -35,6 +36,7 @@ class DbcSignal:
 @dataclass
 class DbcMessage:
     name: str
+    ros_name: str
     id: str
     comm_type: List[str]
     signals: List[DbcSignal]
@@ -75,7 +77,7 @@ def return_datatype(signal):
 def build_dataclasses(can_dbc, dbc_dict):
     dbc_msgs = []
     for msg in can_dbc.messages:
-        dbc_msg = DbcMessage(msg.name, f'0x{msg.frame_id:004x}', \
+        dbc_msg = DbcMessage(msg.name, '', f'0x{msg.frame_id:004x}', \
             dbc_dict[msg.name] , [])
         for signal in msg.signals:
             msg_signal = DbcSignal(signal.name, return_datatype(signal))
@@ -98,23 +100,24 @@ def create_new_package():
         return False
     copy_tree(str(template_pkg_dir), str(out_pkg_dir))
 
-def make_ros_messages(dbc_msgs, msg_template, out_msg_dir, out_msg_cmake):
+def make_ros_messages(dbc_msgs, msg_template, out_msg_dir, out_msg_cmake, ros_msg_dir):
     ros_msgs = []
     ros_msg_names = []
     out_msg_dir.mkdir(exist_ok = True)
     for dbc_msg in dbc_msgs:
         ros_msg = msg_template
         for signal in dbc_msg.signals:
-            ros_msg += signal.data_type + " " + signal.name + "\n"
+            ros_msg += signal.data_type + " " + signal.name.lower() + "\n"
         ros_msgs.append(ros_msg.strip())
     for idx, ros_msg in enumerate(ros_msgs):
         ros_msg_name = "".join([dbc_msg_part.capitalize() for dbc_msg_part in dbc_msgs[idx].name.split("_")]) + '.msg'
+        dbc_msgs[idx].ros_name = ros_msg_name.replace(".msg", "")
         ros_msg_names.append(ros_msg_name)
         ros_msg_path = out_msg_dir / ros_msg_name
         ros_msg_path.write_text(ros_msg)
     cmake_out_msg = out_msg_cmake.read_text()
     cmake_out_msg = cmake_out_msg.replace("MSG_FILES", "\n".join(["\t" + '"' + \
-        ros_msg_name + '"' for ros_msg_name in ros_msg_names]).strip())
+        ros_msg_dir + ros_msg_name + '"' for ros_msg_name in ros_msg_names]).strip())
     out_msg_cmake.write_text(cmake_out_msg)
 
 def copy_dbc(dbc_fp, out_dbc_dir):
@@ -138,7 +141,45 @@ def modify_dispatch(dbc_msgs, out_dispatch_file):
     dispatch_out_text = dispatch_out_text.replace("MESSAGE_IDS", dispatch_ids)
     out_dispatch_file.write_text(dispatch_out_text)
 
-def generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_dir, out_launch_dir):
+def modify_header(dbc_msgs, out_can_header):
+    raptor_msg_imports = ""
+    msg_import_template = '#include "raptor_dbw_msgs/msg/IMPORT.hpp"\n'
+    raptor_usings = ""
+    raptor_usings_template = "using raptor_dbw_msgs::msg::USING;\n"
+    recv_can_msgs = ""
+    recv_can_msgs_template = "\tvoid recvCANFUNC(const Frame::SharedPtr msg);\n"
+    recv_ros_msgs = ""
+    recv_ros_msgs_template = "\tvoid recvROSFUNC(const ROSFUNC::SharedPtr msg);\n"
+    ros_subscribers = ""
+    ros_subscribers_template = "\trclcpp::Subscription<ROSMSG>::SharedPtr subROSMSG_;\n"
+    ros_publishers = ""
+    ros_publishers_template = "\trclcpp::Publisher<ROSMSG>::SharedPtr pubROSMSG_;\n"
+    for dbc_msg in dbc_msgs:
+        raptor_msg_import_name = dbc_msg.name.lower()
+        for digit in range(10):
+            raptor_msg_import_name = re.sub(f'_{digit}' , f'{digit}' ,raptor_msg_import_name)
+        raptor_msg_imports += (msg_import_template.replace("IMPORT", raptor_msg_import_name))
+        raptor_usings += (raptor_usings_template.replace("USING", dbc_msg.ros_name))
+        recv_can_msgs += (recv_can_msgs_template.replace("CANFUNC", dbc_msg.ros_name))
+        recv_ros_msgs += (recv_ros_msgs_template.replace("ROSFUNC", dbc_msg.ros_name))
+        ros_subscribers += (ros_subscribers_template.replace("ROSMSG", dbc_msg.ros_name))
+        ros_publishers += (ros_publishers_template.replace("ROSMSG", dbc_msg.ros_name))
+    raptor_msg_imports = raptor_msg_imports.strip()
+    raptor_usings = raptor_usings.strip()
+    recv_can_msgs = recv_can_msgs.strip()
+    recv_ros_msgs = recv_ros_msgs.strip()
+    ros_subscribers = ros_subscribers.strip()
+    ros_publishers = ros_publishers.strip()
+    out_can_header_text = out_can_header.read_text()
+    out_can_header_text = out_can_header_text.replace("RAPTOR_MSG_IMPORTS", raptor_msg_imports)
+    out_can_header_text = out_can_header_text.replace("RAPTOR_USING", raptor_usings)
+    out_can_header_text = out_can_header_text.replace("RECV_CAN_MESSAGES", recv_can_msgs)
+    out_can_header_text = out_can_header_text.replace("RECV_ROS_MESSAGES", recv_ros_msgs)
+    out_can_header_text = out_can_header_text.replace("ROS_SUBSCRIBERS", ros_subscribers)
+    out_can_header_text = out_can_header_text.replace("ROS_PUBLISHERS", ros_publishers)
+    out_can_header.write_text(out_can_header_text)
+
+def generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_dir, out_launch_dir, ros_msg_dir, out_can_header):
     can_dbc = cantools.database.load_file(dbc_fp, database_format='dbc')
     dbc_dict = parse_dbc_dict(yaml.safe_load(Path(yaml_fp).read_text()))
     dbc_msgs = build_dataclasses(can_dbc, dbc_dict)
@@ -148,9 +189,10 @@ def generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_di
         print("Generated already exists. Can't generate driver")
     else:
         msg_template = "builtin_interfaces/Time stamp\n\n"
-        make_ros_messages(dbc_msgs, msg_template, out_msg_dir, out_msg_cmake)
+        make_ros_messages(dbc_msgs, msg_template, out_msg_dir, out_msg_cmake, ros_msg_dir)
         copy_dbc(dbc_fp, out_dbc_dir)
         add_dbc_to_launch(dbc_fp, out_launch_dir)
         modify_dispatch(dbc_msgs, out_dispatch_file)
+        modify_header(dbc_msgs, out_can_header)
 
-generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_dir, out_launch_dir)
+generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_dir, out_launch_dir, ros_msg_dir, out_can_header)

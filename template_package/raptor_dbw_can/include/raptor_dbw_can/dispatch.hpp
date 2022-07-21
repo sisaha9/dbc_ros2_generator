@@ -35,7 +35,7 @@ namespace raptor_dbw_can
 /** \brief Enumeration of CAN message IDs */
 enum ListMessageIDs
 {
-  MESSAGE_IDS
+    MESSAGE_IDS
 };
 
 }  // namespace raptor_dbw_can
