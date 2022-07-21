@@ -1,0 +1,3 @@
+receive: ["AKit_AccelPdlRequest", "AKit_SteeringRequest", "AKit_BrakeRequest", "AKit_PrndRequest"]
+
+publish: ["DBW_Misc", "DBW_AccelPdlReport", "DBW_SteeringReport", "DBW_BrakeReport", "DBW_PrndReport", "DBW_WheelPositionReport", "AKit_GlobalEnbl", "AKit_OtherActuators", "DBW_DriverInputs", "DBW_TirePressReport", "DBW_VinReport", "DBW_Reserved1", "DBW_ImuReport", "DBW_WheelSpeedReport", "DBW_RadarSonar", "DBW_FaultText", "DBW_LowVoltSysReport", "DBW_BrakeReport2", "DBW_SteeringReport2", "DBW_OtherActuatorsReport", "DBW_FaultActionsReport", "DBW_GpsReference", "DBW_GpsRemainder", "DBW_ExitReport", "DBW_Reserved_1F20", "DBW_Reserved_1F21", "DBW_Reserved_1F22", "DBW_Reserved_1F23", "AKit_Reserved_2F07", "AKit_Reserved_2F08", "AKit_Reserved_2F09", "DBW_Reserved_1F25"]
