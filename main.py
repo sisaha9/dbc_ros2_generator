@@ -11,10 +11,10 @@ import re
 
 supported_int_bit_lengths = [8, 16, 32, 64]
 supported_float_bit_lengths = [32, 64]
-# dbc_fp = 'New_Eagle_DBW_3.4.dbc'
-# yaml_fp = 'New_Eagle_DBW_3.4.yaml'
-dbc_fp = 'IAC-CAN1-INDY-V9.dbc'
-yaml_fp = 'IAC-CAN1-INDY-V9.yaml'
+dbc_fp = 'New_Eagle_DBW_3.4.dbc'
+yaml_fp = 'New_Eagle_DBW_3.4.yaml'
+# dbc_fp = 'IAC-CAN1-INDY-V9.dbc'
+# yaml_fp = 'IAC-CAN1-INDY-V9.yaml'
 template_pkg_dir = Path('template_package/')
 out_pkg_dir = Path('generated') / 'src'
 out_pkg_msg_dir = out_pkg_dir / 'raptor_dbw_msgs'
@@ -37,6 +37,7 @@ class DbcSignal:
 class DbcMessage:
     name: str
     ros_name: str
+    dispatch_id_name: str
     id: str
     comm_type: List[str]
     signals: List[DbcSignal]
@@ -77,7 +78,7 @@ def return_datatype(signal):
 def build_dataclasses(can_dbc, dbc_dict):
     dbc_msgs = []
     for msg in can_dbc.messages:
-        dbc_msg = DbcMessage(msg.name, '', f'0x{msg.frame_id:004x}', \
+        dbc_msg = DbcMessage(msg.name, '', '', f'0x{msg.frame_id:004x}', \
             dbc_dict[msg.name] , [])
         for signal in msg.signals:
             msg_signal = DbcSignal(signal.name, return_datatype(signal))
@@ -96,7 +97,7 @@ def parse_dbc_dict(dbc_dict):
     return reversed_dict
 
 def create_new_package():
-    if Path('generated').is_dir():
+    if Path(out_pkg_dir).is_dir():
         return False
     copy_tree(str(template_pkg_dir), str(out_pkg_dir))
 
@@ -134,6 +135,7 @@ def modify_dispatch(dbc_msgs, out_dispatch_file):
     dispatch_ids = ""
     for dbc_msg in dbc_msgs:
         dispatch_msg_name = "\tID_" + "_".join([dbc_msg_part.upper() for dbc_msg_part in dbc_msg.name.split("_")])
+        dbc_msg.dispatch_id_name = dispatch_msg_name.strip()
         dispatch_msg_id = dbc_msg.id
         dispatch_ids += (dispatch_msg_name + " = " + dispatch_msg_id + ",\n")
     dispatch_ids = dispatch_ids.strip()
@@ -147,7 +149,7 @@ def modify_header(dbc_msgs, out_can_header):
     raptor_usings = ""
     raptor_usings_template = "using raptor_dbw_msgs::msg::USING;\n"
     recv_can_msgs = ""
-    recv_can_msgs_template = "\tvoid recvCANFUNC(const Frame::SharedPtr msg);\n"
+    recv_can_msgs_template = "\tvoid recvCANFUNC(const Frame::SharedPtr msg, DbcMessage * message);\n"
     recv_ros_msgs = ""
     recv_ros_msgs_template = "\tvoid recvROSFUNC(const ROSFUNC::SharedPtr msg);\n"
     ros_subscribers = ""
@@ -160,8 +162,10 @@ def modify_header(dbc_msgs, out_can_header):
             raptor_msg_import_name = re.sub(f'_{digit}' , f'{digit}' ,raptor_msg_import_name)
         raptor_msg_imports += (msg_import_template.replace("IMPORT", raptor_msg_import_name))
         raptor_usings += (raptor_usings_template.replace("USING", dbc_msg.ros_name))
-        recv_can_msgs += (recv_can_msgs_template.replace("CANFUNC", dbc_msg.ros_name))
-        recv_ros_msgs += (recv_ros_msgs_template.replace("ROSFUNC", dbc_msg.ros_name))
+        if 'publish' in dbc_msg.comm_type:
+            recv_can_msgs += (recv_can_msgs_template.replace("CANFUNC", dbc_msg.ros_name))
+        if 'receive' in dbc_msg.comm_type:
+            recv_ros_msgs += (recv_ros_msgs_template.replace("ROSFUNC", dbc_msg.ros_name))
         ros_subscribers += (ros_subscribers_template.replace("ROSMSG", dbc_msg.ros_name))
         ros_publishers += (ros_publishers_template.replace("ROSMSG", dbc_msg.ros_name))
     raptor_msg_imports = raptor_msg_imports.strip()
@@ -179,7 +183,51 @@ def modify_header(dbc_msgs, out_can_header):
     out_can_header_text = out_can_header_text.replace("ROS_PUBLISHERS", ros_publishers)
     out_can_header.write_text(out_can_header_text)
 
-def generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_dir, out_launch_dir, ros_msg_dir, out_can_header):
+def modify_source(dbc_msgs, out_can_source):
+    ros_publishers_initialize = ""
+    ros_publishers_initialize_template = '\tpubROSMSG_ = this->create_publisher<ROSMSG>("MSGNAME", rclcpp::SensorDataQoS());\n'
+    ros_subscribers_initialize = ""
+    ros_subscribers_initialize_template = '\tsubROSMSG_ = this->create_subscription<ROSMSG>("MSGNAME", rclcpp::SensorDataQoS(), std::bind(&RaptorDbwCAN::recvROSMSG, this, std::placeholders::_1));\n'
+    switch_case_id = ""
+    switch_case_recv_id_template = "\t\t\tcase SWITCHID:\n\t\t\t\tRECV_DBC(recvROSMSG);\n\t\t\t\tbreak;\n"
+    switch_case_pub_id_template = "\t\t\tcase SWITCHID:\n\t\t\t\tbreak;\n"
+    recv_can_body = ""
+    recv_can_body_template = 'void RaptorDbwCAN::recvROSMSG(const Frame::SharedPtr msg, DbcMessage * message)\n{\n\tROSMSG out;\n\tout.stamp = msg->header.stamp;\n\n\tFILL_SIGNALS\n\n\tpubROSMSG_->publish(out);\n}\n\n'
+    recv_can_body_signal_template = '\tout.FIELDNAME = message->GetSignal("SIGNAME")->GetResult();\n'
+    recv_ros_body = ""
+    recv_ros_body_template = 'void RaptorDbwCAN::recvROSMSG(const ROSMSG::SharedPtr msg)\n{\n\tNewEagle::DbcMessage * message = dbw_dbc_.GetMessageById(DISPATCH_ID);\n\n\tFILLSIGNALS\n\n\tFrame frame = message->GetFrame();\n\tpub_can_->publish(frame);\n}\n\n'
+    recv_ros_body_field_template = '\tmessage->GetSignal("SIGNAME")->SetResult(msg->FIELDNAME);\n'
+    for dbc_msg in dbc_msgs:
+        if 'publish' in dbc_msg.comm_type:
+            ros_publishers_initialize += (ros_publishers_initialize_template.replace("ROSMSG", dbc_msg.ros_name).replace("MSGNAME", dbc_msg.name.lower()))
+            switch_case_id += (switch_case_recv_id_template.replace("SWITCHID", dbc_msg.dispatch_id_name).replace("ROSMSG", dbc_msg.ros_name))
+            recv_can_body_signal = ""
+            for signal in dbc_msg.signals:
+                recv_can_body_signal += (recv_can_body_signal_template.replace("FIELDNAME", signal.name.lower()).replace("SIGNAME", signal.name))
+            recv_can_body_signal = recv_can_body_signal.strip()
+            recv_can_body += (recv_can_body_template.replace("ROSMSG", dbc_msg.ros_name).replace("FILL_SIGNALS", recv_can_body_signal))
+        if 'receive' in dbc_msg.comm_type:
+            ros_subscribers_initialize += (ros_subscribers_initialize_template.replace("ROSMSG", dbc_msg.ros_name).replace("MSGNAME", dbc_msg.name.lower()))
+            # switch_case_id += (switch_case_pub_id_template.replace("SWITCHID", dbc_msg.dispatch_id_name).replace("ROSMSG", dbc_msg.ros_name))
+            recv_ros_body_field = ""
+            for signal in dbc_msg.signals:
+                recv_ros_body_field += (recv_ros_body_field_template.replace("FIELDNAME", signal.name.lower()).replace("SIGNAME", signal.name))
+            recv_ros_body_field = recv_ros_body_field.strip()
+            recv_ros_body += (recv_ros_body_template.replace("ROSMSG", dbc_msg.ros_name).replace("DISPATCH_ID", dbc_msg.dispatch_id_name).replace("FILLSIGNALS", recv_ros_body_field))
+    ros_publishers_initialize = ros_publishers_initialize.strip()
+    ros_subscribers_initialize = ros_subscribers_initialize.strip()
+    switch_case_id = switch_case_id.strip()
+    recv_can_body = recv_can_body.strip()
+    recv_ros_body = recv_ros_body.strip()
+    out_can_source_text = out_can_source.read_text()
+    out_can_source_text = out_can_source_text.replace("ROS_PUBLISHERS_INITIALIZE", ros_publishers_initialize)
+    out_can_source_text = out_can_source_text.replace("ROS_SUBSCRIBERS_INITIALIZE", ros_subscribers_initialize)
+    out_can_source_text = out_can_source_text.replace("SWITCH_CASE_ID", switch_case_id)
+    out_can_source_text = out_can_source_text.replace("RECV_CAN_BODY", recv_can_body)
+    out_can_source_text = out_can_source_text.replace("RECV_ROS_BODY", recv_ros_body)
+    out_can_source.write_text(out_can_source_text)
+
+def generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_dir, out_launch_dir, ros_msg_dir, out_can_header, out_can_source):
     can_dbc = cantools.database.load_file(dbc_fp, database_format='dbc')
     dbc_dict = parse_dbc_dict(yaml.safe_load(Path(yaml_fp).read_text()))
     dbc_msgs = build_dataclasses(can_dbc, dbc_dict)
@@ -194,5 +242,6 @@ def generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_di
         add_dbc_to_launch(dbc_fp, out_launch_dir)
         modify_dispatch(dbc_msgs, out_dispatch_file)
         modify_header(dbc_msgs, out_can_header)
+        modify_source(dbc_msgs, out_can_source)
 
-generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_dir, out_launch_dir, ros_msg_dir, out_can_header)
+generate_new_package(dbc_fp, yaml_fp, out_msg_dir, out_msg_cmake, out_dbc_dir, out_launch_dir, ros_msg_dir, out_can_header, out_can_source)

@@ -48,7 +48,7 @@ RaptorDbwCAN::RaptorDbwCAN(const rclcpp::NodeOptions & options)
     max_steer_angle_ = declare_parameter<double>("max_steer_angle", 0.0);
     publish_my_laps_ = declare_parameter<bool>("publish_my_laps", true);
 
-    pub_can = this->create_publisher<Frame>(
+    pub_can_ = this->create_publisher<Frame>(
         "can_rx", 20
     );
     ROS_PUBLISHERS_INITIALIZE
@@ -74,7 +74,7 @@ void RaptorDbwCAN::recvCAN(const Frame::SharedPtr msg)
         switch (id) {
             SWITCH_CASE_ID
             default:
-            break;
+                break;
         }
     }
 }
