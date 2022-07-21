@@ -1,6 +1,6 @@
 __pycache__
-*.dbc
-*.yaml
+IAC-CAN1-INDY-V9.dbc
+IAC-CAN1-INDY-V9.yaml
 generated/
 .vscode/
 *.Identifier
