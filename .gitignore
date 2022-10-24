@@ -1,6 +1,8 @@
 __pycache__
-IAC-CAN1-INDY-V9.dbc
-IAC-CAN1-INDY-V9.yaml
+*.dbc
+*.yaml
+!New_Eagle_DBW_3.4.dbc
+!New_Eagle_DBW_3.4.yaml
 generated/
 .vscode/
 *.Identifier

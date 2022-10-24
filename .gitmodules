@@ -1,0 +1,3 @@
+[submodule "dbc_parsing_template"]
+	path = dbc_parsing_template
+	url = git@github.com:sisaha9/dbc_parsing_template.git
