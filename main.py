@@ -1,4 +1,3 @@
-from importlib.resources import read_text
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
@@ -48,6 +47,8 @@ class DbcMessage:
 def replace_package_name(folder_name):
     for path_object in folder_name.glob('**/*'):
         if path_object.is_file():
+            if (".git" in path_object.as_posix()):
+                continue
             path_object_text = path_object.read_text()
             path_object_text = path_object_text.replace("pkg_name", pkg_name)
             path_object_text = path_object_text.replace("PKG_NAME", pkg_name.upper())
