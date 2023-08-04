@@ -5,8 +5,7 @@ from typing import List
 import cantools
 import math
 import bisect
-from distutils.dir_util import copy_tree
-from distutils.file_util import copy_file
+from shutil import copytree as copy_tree, copyfile as copy_file
 import re
 
 supported_int_bit_lengths = [2, 8, 16, 32, 64]
@@ -48,6 +47,8 @@ def replace_package_name(folder_name):
     for path_object in folder_name.glob('**/*'):
         if path_object.is_file():
             if (".git" in path_object.as_posix()):
+                continue
+            if path_object.suffix[1:] == "dbc":
                 continue
             path_object_text = path_object.read_text()
             path_object_text = path_object_text.replace("pkg_name", pkg_name)
