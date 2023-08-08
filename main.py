@@ -11,8 +11,8 @@ import re
 supported_int_bit_lengths = [2, 8, 16, 32, 64]
 supported_float_bit_lengths = [32, 64]
 pkg_name = "raptor_dbw"
-dbc_fp = 'New_Eagle_DBW_3.4.dbc'
-yaml_fp = 'New_Eagle_DBW_3.4.yaml'
+dbc_fp = 'CAN1-INDY-V14.dbc'
+yaml_fp = 'CAN1-INDY-V14.yaml'
 template_pkg_dir = Path('dbc_parsing_template/')
 out_pkg_dir = Path('generated') / 'src'
 out_pkg_msg_dir = out_pkg_dir / 'pkg_name_msgs'.replace('pkg_name', pkg_name)
@@ -184,10 +184,10 @@ def modify_header(dbc_msgs, out_can_header):
         pkg_usings += (pkg_usings_template.replace("USING", dbc_msg.ros_name))
         if 'publish' in dbc_msg.comm_type:
             recv_can_msgs += (recv_can_msgs_template.replace("CANFUNC", dbc_msg.ros_name))
+            ros_publishers += (ros_publishers_template.replace("ROSMSG", dbc_msg.ros_name))
         if 'receive' in dbc_msg.comm_type:
             recv_ros_msgs += (recv_ros_msgs_template.replace("ROSFUNC", dbc_msg.ros_name))
-        ros_subscribers += (ros_subscribers_template.replace("ROSMSG", dbc_msg.ros_name))
-        ros_publishers += (ros_publishers_template.replace("ROSMSG", dbc_msg.ros_name))
+            ros_subscribers += (ros_subscribers_template.replace("ROSMSG", dbc_msg.ros_name))
     pkg_msg_imports = pkg_msg_imports.strip()
     pkg_usings = pkg_usings.strip()
     recv_can_msgs = recv_can_msgs.strip()
