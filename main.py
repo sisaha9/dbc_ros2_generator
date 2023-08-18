@@ -70,6 +70,8 @@ def process_interval(bit_lengths, nbits):
             return interval[1]
 
 def return_bits(signal_length, is_int):
+    if signal_length == 1:
+        return 1
     nbits = (math.floor((signal_length - 1) / 8) + 1) * 8
     if is_int:
         return process_interval(supported_int_bit_lengths, nbits)
@@ -83,9 +85,9 @@ def return_datatype(signal):
         ans = "float"
     else:
         signal_bits = str(return_bits(signal.length, True))
-        if signal_bits == 2:
+        if int(signal_bits) == 1:
             return "bool"
-        if signal.is_signed:
+        elif signal.is_signed:
             ans = "int"
         else:
             ans = "uint"
