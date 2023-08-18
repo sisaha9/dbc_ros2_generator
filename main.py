@@ -11,8 +11,8 @@ import re
 supported_int_bit_lengths = [2, 8, 16, 32, 64]
 supported_float_bit_lengths = [32, 64]
 pkg_name = "raptor_dbw"
-dbc_fp = 'CAN1-INDY-V14.dbc'
-yaml_fp = 'CAN1-INDY-V14.yaml'
+dbc_fp = 'New_Eagle_DBW_3.4.dbc'
+yaml_fp = 'New_Eagle_DBW_3.4.yaml'
 template_pkg_dir = Path('dbc_parsing_template/')
 out_pkg_dir = Path('generated') / 'src'
 out_pkg_msg_dir = out_pkg_dir / 'pkg_name_msgs'.replace('pkg_name', pkg_name)
