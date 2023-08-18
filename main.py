@@ -178,7 +178,7 @@ def make_ros_messages(dbc_msgs, msg_template, out_msg_dir, out_msg_cmake, ros_ms
 
 def copy_dbc(dbc_fp, out_dbc_dir):
     out_dbc_dir.mkdir(exist_ok=True)
-    copy_file(dbc_fp, str(out_dbc_dir / dbc_fp))
+    copy_file(dbc_fp, str(out_dbc_dir / Path(dbc_fp).name))
 
 
 def add_dbc_to_launch(dbc_fp, out_launch_dir):
