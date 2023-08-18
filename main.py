@@ -12,8 +12,8 @@ import subprocess
 supported_int_bit_lengths = [2, 8, 16, 32, 64]
 supported_float_bit_lengths = [32, 64]
 pkg_name = "raptor_dbw"
-dbc_fp = "New_Eagle_DBW_3.4.dbc"
-yaml_fp = "New_Eagle_DBW_3.4.yaml"
+dbc_fp = "CAN1-INDY-V14.dbc"
+yaml_fp = "CAN1-INDY-V14.yaml"
 template_pkg_dir = Path("dbc_parsing_template/")
 out_pkg_dir = Path("generated") / "src"
 out_pkg_msg_dir = out_pkg_dir / "pkg_name_msgs".replace("pkg_name", pkg_name)
@@ -263,7 +263,7 @@ def modify_source(dbc_msgs, out_can_source):
         '\tout.FIELDNAME = message->GetSignal("SIGNAME")->GetResult();\n'
     )
     recv_ros_body = ""
-    recv_ros_body_template = "void PkgNameCAN::recvROSMSG(const ROSMSG::SharedPtr msg)\n{\n\tNewEagle::DbcMessage * message = dbc_.GetMessageById(DISPATCH_ID);\n\n\tFILLSIGNALS\n\n\tFrame frame = message->GetFrame();\n\tpub_can_->publish(frame);\n}\n\n"
+    recv_ros_body_template = "void PkgNameCAN::recvROSMSG(const ROSMSG::SharedPtr msg)\n{\n\tNewEagle::DbcMessage * message = dbc_.GetMessageById(DISPATCH_ID);\n\n\tFILLSIGNALS\n\n\tFrame frame = message->GetFrame();\n\tonFrame(frame);\n}\n\n"
     recv_ros_body_field_template = '\tmessage->GetSignal("SIGNAME")->SetResult(msg->FIELDNAME);\n'
     for dbc_msg in dbc_msgs:
         if "publish" in dbc_msg.comm_type:
